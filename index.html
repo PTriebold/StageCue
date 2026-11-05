@@ -35,7 +35,6 @@
       overflow-x: hidden;
     }
 
-    /* Setup Dashboard */
     #setup-view {
       max-width: 600px;
       margin: 0 auto;
@@ -152,9 +151,19 @@
       justify-content: space-between;
       align-items: center;
       gap: 12px;
+      flex-wrap: wrap;
     }
 
-    /* Threshold List */
+    .diag-box {
+      background: rgba(15, 23, 42, 0.7);
+      border: 1px solid var(--border);
+      padding: 10px 12px;
+      border-radius: 8px;
+      font-size: 0.8rem;
+      color: #cbd5e1;
+      line-height: 1.4;
+    }
+
     #threshold-list {
       display: flex;
       flex-direction: column;
@@ -206,7 +215,7 @@
       background: #334155;
       color: var(--text);
       padding: 10px 14px;
-      font-size: 0.9rem;
+      font-size: 0.85rem;
     }
 
     .btn-start {
@@ -244,14 +253,13 @@
       display: flex;
     }
 
-    /* Pre-alert flashing border for moderator */
     @keyframes preAlertPulse {
       0%, 100% { box-shadow: inset 0 0 0 0 rgba(255, 255, 255, 0); }
-      50% { box-shadow: inset 0 0 0 18px rgba(255, 255, 255, 0.85); }
+      50% { box-shadow: inset 0 0 0 22px rgba(255, 255, 255, 0.9); }
     }
 
     #timer-view.pre-alert-active {
-      animation: preAlertPulse 0.8s infinite;
+      animation: preAlertPulse 0.65s infinite;
     }
 
     @keyframes overtimeBlink {
@@ -272,7 +280,7 @@
     }
 
     #pre-alert-banner {
-      background: rgba(0, 0, 0, 0.8);
+      background: rgba(0, 0, 0, 0.85);
       color: #fff;
       padding: 10px 18px;
       border-radius: 999px;
@@ -321,7 +329,7 @@
       padding: 12px 16px;
       border-radius: 16px;
       border: 1px solid rgba(255, 255, 255, 0.15);
-      transition: opacity 0.3s ease, transform 0.3s ease;
+      transition: opacity 0.3s ease;
     }
 
     .controls-hidden .timer-controls,
@@ -390,12 +398,20 @@
         Buzzes your phone before a color change so you have time to pick it up and hold it toward the presenter.
       </p>
       <input type="range" id="lead-time" min="0" max="30" step="1" value="10" oninput="updateLeadLabel(this.value)" />
+
+      <div class="diag-box" id="haptic-diag">
+        Checking device vibration support...
+      </div>
+
       <div class="row-between">
-        <label style="font-size: 0.9rem; display:flex; align-items:center; gap:8px;">
+        <label style="font-size: 0.88rem; display:flex; align-items:center; gap:8px;">
           <input type="checkbox" id="sound-toggle" checked style="width:18px; height:18px;" />
-          Discreet audio beep on pre-alert
+          Audio / Haptic Pulse Fallback
         </label>
-        <button class="btn-secondary" onclick="testBuzz()">Test Buzz & Beep</button>
+        <div style="display:flex; gap:8px;">
+          <button class="btn-secondary" onclick="enableNotificationBuzz()">Enable OS Alert</button>
+          <button class="btn-secondary" onclick="testBuzz()">Test Buzz</button>
+        </div>
       </div>
     </section>
 
@@ -436,14 +452,15 @@
   </section>
 
   <script>
-    // Register Service Worker for offline PWA support
+    let swRegistration = null;
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js').catch(() => {});
+        navigator.serviceWorker.register('./sw.js').then((reg) => {
+          swRegistration = reg;
+        }).catch(() => {});
       });
     }
 
-    // Default Configuration State
     let thresholds = [
       { m: 5, s: 0, c: '#facc15', l: '5 MIN REMAINING' },
       { m: 1, s: 0, c: '#ef4444', l: '1 MIN REMAINING' }
@@ -457,7 +474,125 @@
     let firedPreAlerts = new Set();
     let firedThresholds = new Set();
 
-    // Load saved settings from localStorage
+    // Check vibration capability on startup
+    function checkHapticSupport() {
+      const diag = document.getElementById('haptic-diag');
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+                    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+      if (isIOS) {
+        diag.innerHTML = '⚠️ <b>iOS Detected:</b> Apple blocks direct web vibration. Keep <b>Audio Fallback</b> checked or tap <b>Enable OS Alert</b> (when installed to Home Screen) so your iPhone vibrates via system notifications.';
+      } else if ('vibrate' in navigator) {
+        diag.innerHTML = '✅ <b>Vibration API Supported:</b> If you do not feel a buzz, ensure Android <b>Battery Saver</b> is OFF and <b>Touch Haptics</b> are enabled in system settings.';
+      } else {
+        diag.innerHTML = 'ℹ️ <b>No Hardware Vibration API:</b> Using Audio / Bass Haptic Fallback.';
+      }
+    }
+
+    // Request OS Notification Permission (triggers native OS vibration on Android & iOS PWA)
+    async function enableNotificationBuzz() {
+      if (!('Notification' in window)) {
+        alert('System notifications are not supported in this browser.');
+        return;
+      }
+      const perm = await Notification.requestPermission();
+      const diag = document.getElementById('haptic-diag');
+      if (perm === 'granted') {
+        diag.innerHTML = '✅ <b>OS Alert Enabled:</b> Pre-alerts will now fire both direct vibration and a native system notification buzz.';
+        triggerFeedback('pre', 'Test Alert — Vibration Ready');
+      } else {
+        diag.innerHTML = '⚠️ <b>Notification Permission Denied:</b> Relying on browser vibration & audio fallback.';
+      }
+    }
+
+    // Unlock AudioContext & Vibration API inside direct user tap gesture
+    function unlockMediaAndHaptics() {
+      if ('vibrate' in navigator) {
+        try { navigator.vibrate(40); } catch (e) {}
+      }
+      try {
+        if (!audioCtx) {
+          audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (audioCtx.state === 'suspended') {
+          audioCtx.resume();
+        }
+      } catch (e) {}
+    }
+
+    // Multi-layered Haptic + Audio + OS Notification Feedback
+    function triggerFeedback(type = 'pre', customTitle = '') {
+      // 1. Direct HTML5 Vibration API (Android Chrome / Firefox / Edge)
+      let vibrated = false;
+      if ('vibrate' in navigator) {
+        try {
+          const pattern = type === 'pre'
+            ? [400, 120, 400, 120, 500]
+            : [600, 150, 600];
+          vibrated = navigator.vibrate(pattern);
+        } catch (e) {}
+      }
+
+      // 2. Service Worker System Notification (Forces OS-level vibration on Android & iOS 16.4+ PWA)
+      if ('Notification' in window && Notification.permission === 'granted') {
+        const title = customTitle || (type === 'pre' ? 'Hold Up Phone Soon!' : 'Presentation Color Changed');
+        const options = {
+          body: type === 'pre' ? 'Prepare to show screen to presenter.' : 'Time threshold reached.',
+          vibrate: [400, 120, 400, 120, 500],
+          tag: 'mod-timer-alert',
+          renotify: true,
+          silent: false
+        };
+        if (swRegistration && swRegistration.showNotification) {
+          swRegistration.showNotification(title, options).catch(() => {});
+        } else {
+          try { new Notification(title, options); } catch (e) {}
+        }
+      }
+
+      // 3. Web Audio Low-Frequency Tactile Thump + Discreet Chime
+      if (document.getElementById('sound-toggle').checked) {
+        try {
+          if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+          if (audioCtx.state === 'suspended') audioCtx.resume();
+
+          const now = audioCtx.currentTime;
+
+          // Tactile low-frequency speaker thump (65Hz) + audible chime (880Hz)
+          const pulses = type === 'pre' ? [0, 0.28, 0.56] : [0];
+          pulses.forEach((offset) => {
+            const osc = audioCtx.createOscillator();
+            const sub = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(type === 'pre' ? 880 : 587.33, now + offset);
+
+            // Low-frequency resonance helps you feel the speaker pulse in your hand
+            sub.type = 'triangle';
+            sub.frequency.setValueAtTime(65, now + offset);
+
+            osc.connect(gain);
+            sub.connect(gain);
+            gain.connect(audioCtx.destination);
+
+            gain.gain.setValueAtTime(0.25, now + offset);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + offset + 0.22);
+
+            osc.start(now + offset);
+            sub.start(now + offset);
+            osc.stop(now + offset + 0.22);
+            sub.stop(now + offset + 0.22);
+          });
+        } catch (e) {}
+      }
+    }
+
+    function testBuzz() {
+      unlockMediaAndHaptics();
+      triggerFeedback('pre', 'Test Buzz — Ready!');
+    }
+
     function loadSettings() {
       const saved = localStorage.getItem('mod_timer_config');
       if (saved) {
@@ -472,6 +607,7 @@
         } catch (e) {}
       }
       renderThresholds();
+      checkHapticSupport();
     }
 
     function saveSettings() {
@@ -534,39 +670,6 @@
       renderThresholds();
     }
 
-    // Haptics & Web Audio Synthesizer
-    function triggerFeedback(type = 'pre') {
-      if ('vibrate' in navigator) {
-        if (type === 'pre') {
-          navigator.vibrate([300, 120, 300, 120, 400]);
-        } else {
-          navigator.vibrate([500]);
-        }
-      }
-
-      if (document.getElementById('sound-toggle').checked) {
-        try {
-          if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-          const osc = audioCtx.createOscillator();
-          const gain = audioCtx.createGain();
-          osc.connect(gain);
-          gain.connect(audioCtx.destination);
-
-          osc.frequency.value = type === 'pre' ? 880 : 587.33;
-          gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
-          gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.35);
-
-          osc.start();
-          osc.stop(audioCtx.currentTime + 0.35);
-        } catch (e) {}
-      }
-    }
-
-    function testBuzz() {
-      triggerFeedback('pre');
-    }
-
-    // Calculate high-contrast text color (Black or White) based on background hex
     function getContrastColor(hex) {
       const clean = hex.replace('#', '');
       const r = parseInt(clean.substring(0, 2), 16);
@@ -576,7 +679,6 @@
       return yiq >= 150 ? '#0f172a' : '#f8fafc';
     }
 
-    // Screen Wake Lock
     async function requestWakeLock() {
       if ('wakeLock' in navigator) {
         try {
@@ -593,9 +695,11 @@
       }
     }
 
-    // Timer Engine
     function startTimer() {
+      // Unlock vibration and audio context immediately on button click
+      unlockMediaAndHaptics();
       saveSettings();
+
       const m = parseInt(document.getElementById('total-min').value) || 0;
       const s = parseInt(document.getElementById('total-sec').value) || 0;
       remainingSeconds = m * 60 + s;
@@ -633,12 +737,10 @@
       const preBanner = document.getElementById('pre-alert-banner');
       const preCnt = document.getElementById('pre-alert-cnt');
 
-      // Sort thresholds descending by time in seconds
       const sorted = thresholds
         .map((t, i) => ({ ...t, totalSec: t.m * 60 + t.s, id: i }))
         .sort((a, b) => b.totalSec - a.totalSec);
 
-      // Format MM:SS
       const absSec = Math.abs(remainingSeconds);
       const mins = String(Math.floor(absSec / 60)).padStart(2, '0');
       const secs = String(absSec % 60).padStart(2, '0');
@@ -652,7 +754,10 @@
           upcomingAlert = { ...t, diff };
           if (!firedPreAlerts.has(t.id)) {
             firedPreAlerts.add(t.id);
-            triggerFeedback('pre');
+            triggerFeedback('pre', `Hold Up Phone in ${diff}s (${t.l})`);
+          } else if ('vibrate' in navigator && diff <= 3) {
+            // Short reminder pulse on final 3 seconds before shift
+            try { navigator.vibrate(150); } catch (e) {}
           }
           break;
         }
@@ -667,12 +772,10 @@
         preBanner.style.display = 'none';
       }
 
-      // Determine active color threshold
       if (remainingSeconds <= 0) {
-        // Overtime state
         if (!firedThresholds.has('overtime')) {
           firedThresholds.add('overtime');
-          triggerFeedback('shift');
+          triggerFeedback('shift', 'Time Is Up!');
         }
         timerView.style.backgroundColor = '#7f1d1d';
         timerView.style.color = '#ffffff';
@@ -693,7 +796,7 @@
       if (activeThreshold) {
         if (!firedThresholds.has(activeThreshold.id)) {
           firedThresholds.add(activeThreshold.id);
-          triggerFeedback('shift');
+          triggerFeedback('shift', activeThreshold.l);
         }
         timerView.style.backgroundColor = activeThreshold.c;
         timerView.style.color = getContrastColor(activeThreshold.c);
