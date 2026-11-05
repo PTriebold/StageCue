@@ -25,7 +25,7 @@ self.addEventListener("activate", (event) => {
   self.clients.claim();
 });
 
-// Serve from cache first, fallback to network
+// Serve from cache first, fallback to  network
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
   event.respondWith(
