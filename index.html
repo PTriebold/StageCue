@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#0f172a" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>Moderator Presentation Timer</title>
+  <link rel="manifest" href="./manifest.json" />
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card: #1e293b;
+      --border: #334155;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --accent: #3b82f6;
+      --danger: #ef4444;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      min-height: 100dvh;
+      overflow-x: hidden;
+    }
+
+    /* Setup Dashboard */
+    #setup-view {
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 20px 16px 100px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    header h1 {
+      font-size: 1.25rem;
+      font-weight: 700;
+    }
+
+    .badge {
+      font-size: 0.75rem;
+      background: #1d4ed8;
+      color: #fff;
+      padding: 4px 8px;
+      border-radius: 999px;
+      font-weight: 600;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .card-title {
+      font-size: 0.9rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+      font-weight: 700;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .presets {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    button {
+      cursor: pointer;
+      border: none;
+      border-radius: 8px;
+      font-weight: 600;
+      font-family: inherit;
+      transition: opacity 0.15s, transform 0.1s;
+    }
+
+    button:active {
+      transform: scale(0.97);
+    }
+
+    .btn-preset {
+      background: #334155;
+      color: var(--text);
+      padding: 8px 12px;
+      font-size: 0.85rem;
+    }
+
+    .duration-inputs {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .input-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .input-group label {
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+
+    input[type="number"],
+    input[type="text"] {
+      background: #0f172a;
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 10px 12px;
+      border-radius: 8px;
+      font-size: 1rem;
+      width: 100%;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: var(--accent);
+    }
+
+    .row-between {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+    }
+
+    /* Threshold List */
+    #threshold-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .threshold-item {
+      display: grid;
+      grid-template-columns: 44px 1fr 1.2fr auto;
+      gap: 8px;
+      align-items: center;
+      background: #0f172a;
+      padding: 8px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+    }
+
+    input[type="color"] {
+      -webkit-appearance: none;
+      border: none;
+      width: 38px;
+      height: 38px;
+      border-radius: 8px;
+      cursor: pointer;
+      background: none;
+    }
+
+    input[type="color"]::-webkit-color-swatch-wrapper {
+      padding: 0;
+    }
+
+    input[type="color"]::-webkit-color-swatch {
+      border: 2px solid rgba(255,255,255,0.2);
+      border-radius: 6px;
+    }
+
+    .btn-icon {
+      background: rgba(239, 68, 68, 0.15);
+      color: #f87171;
+      width: 36px;
+      height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.1rem;
+    }
+
+    .btn-secondary {
+      background: #334155;
+      color: var(--text);
+      padding: 10px 14px;
+      font-size: 0.9rem;
+    }
+
+    .btn-start {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: calc(100% - 32px);
+      max-width: 568px;
+      background: var(--accent);
+      color: #fff;
+      padding: 16px;
+      font-size: 1.1rem;
+      border-radius: 12px;
+      box-shadow: 0 10px 25px rgba(59, 130, 246, 0.4);
+      z-index: 10;
+    }
+
+    /* Fullscreen Timer View */
+    #timer-view {
+      position: fixed;
+      inset: 0;
+      display: none;
+      flex-direction: column;
+      justify-content: space-between;
+      align-items: center;
+      padding: 24px;
+      background-color: #0f172a;
+      color: #f8fafc;
+      transition: background-color 0.35s ease, color 0.35s ease;
+      z-index: 100;
+    }
+
+    #timer-view.active {
+      display: flex;
+    }
+
+    /* Pre-alert flashing border for moderator */
+    @keyframes preAlertPulse {
+      0%, 100% { box-shadow: inset 0 0 0 0 rgba(255, 255, 255, 0); }
+      50% { box-shadow: inset 0 0 0 18px rgba(255, 255, 255, 0.85); }
+    }
+
+    #timer-view.pre-alert-active {
+      animation: preAlertPulse 0.8s infinite;
+    }
+
+    @keyframes overtimeBlink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.25; }
+    }
+
+    .overtime-blink {
+      animation: overtimeBlink 1s infinite;
+    }
+
+    .timer-top-bar {
+      width: 100%;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      transition: opacity 0.3s ease;
+    }
+
+    #pre-alert-banner {
+      background: rgba(0, 0, 0, 0.8);
+      color: #fff;
+      padding: 10px 18px;
+      border-radius: 999px;
+      font-weight: 700;
+      font-size: 0.95rem;
+      letter-spacing: 0.04em;
+      display: none;
+      align-items: center;
+      gap: 8px;
+      border: 2px solid #fff;
+    }
+
+    .timer-center {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      flex: 1;
+      width: 100%;
+    }
+
+    #time-display {
+      font-size: clamp(4.5rem, 22vw, 14rem);
+      font-weight: 900;
+      font-variant-numeric: tabular-nums;
+      line-height: 1;
+      letter-spacing: -0.03em;
+    }
+
+    #stage-label {
+      font-size: clamp(1.4rem, 5vw, 3.2rem);
+      font-weight: 800;
+      margin-top: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .timer-controls {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      justify-content: center;
+      background: rgba(15, 23, 42, 0.78);
+      backdrop-filter: blur(8px);
+      padding: 12px 16px;
+      border-radius: 16px;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      transition: opacity 0.3s ease, transform 0.3s ease;
+    }
+
+    .controls-hidden .timer-controls,
+    .controls-hidden .timer-top-bar {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .btn-ctrl {
+      background: rgba(255, 255, 255, 0.15);
+      color: #fff;
+      padding: 12px 18px;
+      font-size: 0.95rem;
+      border-radius: 10px;
+    }
+
+    .btn-ctrl.danger {
+      background: rgba(239, 68, 68, 0.85);
+    }
+
+    .hint-text {
+      font-size: 0.78rem;
+      color: var(--muted);
+      line-height: 1.4;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- SETUP VIEW -->
+  <main id="setup-view">
+    <header>
+      <h1>Moderator Presentation Timer</h1>
+      <span class="badge" id="wake-status">Wake Lock Ready</span>
+    </header>
+
+    <!-- Total Duration Card -->
+    <section class="card">
+      <div class="card-title">
+        <span>1. Presentation Length</span>
+      </div>
+      <div class="presets">
+        <button class="btn-preset" onclick="applyPreset(10, [{m:3,s:0,c:'#facc15',l:'3 MIN LEFT'},{m:1,s:0,c:'#ef4444',l:'1 MIN LEFT'}])">10m Lightning</button>
+        <button class="btn-preset" onclick="applyPreset(20, [{m:5,s:0,c:'#facc15',l:'5 MIN LEFT'},{m:1,s:0,c:'#ef4444',l:'FINAL MINUTE'}])">20m Standard</button>
+        <button class="btn-preset" onclick="applyPreset(45, [{m:10,s:0,c:'#22c55e',l:'10 MIN LEFT'},{m:5,s:0,c:'#facc15',l:'5 MIN LEFT'},{m:1,s:0,c:'#ef4444',l:'WRAP UP'}])">45m Keynote (3 Colors)</button>
+      </div>
+      <div class="duration-inputs">
+        <div class="input-group">
+          <label for="total-min">Minutes</label>
+          <input type="number" id="total-min" min="0" max="300" value="20" />
+        </div>
+        <div class="input-group">
+          <label for="total-sec">Seconds</label>
+          <input type="number" id="total-sec" min="0" max="59" value="0" />
+        </div>
+      </div>
+    </section>
+
+    <!-- Moderator Pre-Alert Buzz Card -->
+    <section class="card">
+      <div class="card-title">
+        <span>2. Moderator Pre-Alert Buzz</span>
+        <span id="lead-time-val" style="color: var(--text);">10s before</span>
+      </div>
+      <p class="hint-text">
+        Buzzes your phone before a color change so you have time to pick it up and hold it toward the presenter.
+      </p>
+      <input type="range" id="lead-time" min="0" max="30" step="1" value="10" oninput="updateLeadLabel(this.value)" />
+      <div class="row-between">
+        <label style="font-size: 0.9rem; display:flex; align-items:center; gap:8px;">
+          <input type="checkbox" id="sound-toggle" checked style="width:18px; height:18px;" />
+          Discreet audio beep on pre-alert
+        </label>
+        <button class="btn-secondary" onclick="testBuzz()">Test Buzz & Beep</button>
+      </div>
+    </section>
+
+    <!-- Color Thresholds Card -->
+    <section class="card">
+      <div class="card-title">
+        <span>3. Visual Sign Thresholds</span>
+        <button class="btn-secondary" style="padding: 6px 10px; font-size:0.8rem;" onclick="addThreshold()">+ Add Color</button>
+      </div>
+      <p class="hint-text">
+        Set the remaining time when the fullscreen background switches color.
+      </p>
+      <div id="threshold-list"></div>
+    </section>
+
+    <button class="btn-start" onclick="startTimer()">Launch Fullscreen Timer</button>
+  </main>
+
+  <!-- FULLSCREEN TIMER VIEW -->
+  <section id="timer-view" onclick="toggleControlsOverlay(event)">
+    <div class="timer-top-bar">
+      <span id="top-status" style="font-weight:700; opacity:0.85;">NORMAL TIME</span>
+      <div id="pre-alert-banner">HOLD UP PHONE IN <span id="pre-alert-cnt">10</span>s</div>
+      <span style="font-size:0.85rem; opacity:0.75;">Tap screen to hide/show buttons</span>
+    </div>
+
+    <div class="timer-center">
+      <div id="time-display">20:00</div>
+      <div id="stage-label">PRESENTING</div>
+    </div>
+
+    <div class="timer-controls" onclick="event.stopPropagation()">
+      <button class="btn-ctrl" id="btn-pause" onclick="togglePause()">Pause</button>
+      <button class="btn-ctrl" onclick="addOneMinute()">+1 Min</button>
+      <button class="btn-ctrl" onclick="resetTimer()">Reset</button>
+      <button class="btn-ctrl danger" onclick="exitTimer()">Exit</button>
+    </div>
+  </section>
+
+  <script>
+    // Register Service Worker for offline PWA support
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').catch(() => {});
+      });
+    }
+
+    // Default Configuration State
+    let thresholds = [
+      { m: 5, s: 0, c: '#facc15', l: '5 MIN REMAINING' },
+      { m: 1, s: 0, c: '#ef4444', l: '1 MIN REMAINING' }
+    ];
+
+    let timerInterval = null;
+    let remainingSeconds = 1200;
+    let isPaused = false;
+    let wakeLock = null;
+    let audioCtx = null;
+    let firedPreAlerts = new Set();
+    let firedThresholds = new Set();
+
+    // Load saved settings from localStorage
+    function loadSettings() {
+      const saved = localStorage.getItem('mod_timer_config');
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          document.getElementById('total-min').value = parsed.totalMin ?? 20;
+          document.getElementById('total-sec').value = parsed.totalSec ?? 0;
+          document.getElementById('lead-time').value = parsed.leadTime ?? 10;
+          document.getElementById('sound-toggle').checked = parsed.sound ?? true;
+          updateLeadLabel(parsed.leadTime ?? 10);
+          if (Array.isArray(parsed.thresholds)) thresholds = parsed.thresholds;
+        } catch (e) {}
+      }
+      renderThresholds();
+    }
+
+    function saveSettings() {
+      const config = {
+        totalMin: parseInt(document.getElementById('total-min').value) || 0,
+        totalSec: parseInt(document.getElementById('total-sec').value) || 0,
+        leadTime: parseInt(document.getElementById('lead-time').value) || 0,
+        sound: document.getElementById('sound-toggle').checked,
+        thresholds
+      };
+      localStorage.setItem('mod_timer_config', JSON.stringify(config));
+    }
+
+    function updateLeadLabel(val) {
+      document.getElementById('lead-time-val').textContent = `${val}s before`;
+      saveSettings();
+    }
+
+    function renderThresholds() {
+      const list = document.getElementById('threshold-list');
+      list.innerHTML = '';
+      thresholds.forEach((t, idx) => {
+        const row = document.createElement('div');
+        row.className = 'threshold-item';
+        row.innerHTML = `
+          <input type="color" value="${t.c}" onchange="updateThreshold(${idx}, 'c', this.value)" title="Screen Color" />
+          <div style="display:flex; gap:4px; align-items:center;">
+            <input type="number" min="0" max="240" value="${t.m}" onchange="updateThreshold(${idx}, 'm', this.value)" title="Minutes" style="padding:8px;" />
+            <span>:</span>
+            <input type="number" min="0" max="59" value="${t.s}" onchange="updateThreshold(${idx}, 's', this.value)" title="Seconds" style="padding:8px;" />
+          </div>
+          <input type="text" value="${t.l}" placeholder="Banner Label" onchange="updateThreshold(${idx}, 'l', this.value)" style="padding:8px;" />
+          <button class="btn-icon" onclick="removeThreshold(${idx})" title="Remove">&times;</button>
+        `;
+        list.appendChild(row);
+      });
+      saveSettings();
+    }
+
+    function updateThreshold(idx, key, val) {
+      if (key === 'm' || key === 's') val = Math.max(0, parseInt(val) || 0);
+      thresholds[idx][key] = val;
+      saveSettings();
+    }
+
+    function addThreshold() {
+      thresholds.push({ m: 2, s: 0, c: '#38bdf8', l: '2 MIN REMAINING' });
+      renderThresholds();
+    }
+
+    function removeThreshold(idx) {
+      thresholds.splice(idx, 1);
+      renderThresholds();
+    }
+
+    function applyPreset(totalMin, presetThresholds) {
+      document.getElementById('total-min').value = totalMin;
+      document.getElementById('total-sec').value = 0;
+      thresholds = JSON.parse(JSON.stringify(presetThresholds));
+      renderThresholds();
+    }
+
+    // Haptics & Web Audio Synthesizer
+    function triggerFeedback(type = 'pre') {
+      if ('vibrate' in navigator) {
+        if (type === 'pre') {
+          navigator.vibrate([300, 120, 300, 120, 400]);
+        } else {
+          navigator.vibrate([500]);
+        }
+      }
+
+      if (document.getElementById('sound-toggle').checked) {
+        try {
+          if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+
+          osc.frequency.value = type === 'pre' ? 880 : 587.33;
+          gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.35);
+
+          osc.start();
+          osc.stop(audioCtx.currentTime + 0.35);
+        } catch (e) {}
+      }
+    }
+
+    function testBuzz() {
+      triggerFeedback('pre');
+    }
+
+    // Calculate high-contrast text color (Black or White) based on background hex
+    function getContrastColor(hex) {
+      const clean = hex.replace('#', '');
+      const r = parseInt(clean.substring(0, 2), 16);
+      const g = parseInt(clean.substring(2, 4), 16);
+      const b = parseInt(clean.substring(4, 6), 16);
+      const yiq = (r * 299 + g * 587 + b * 114) / 1000;
+      return yiq >= 150 ? '#0f172a' : '#f8fafc';
+    }
+
+    // Screen Wake Lock
+    async function requestWakeLock() {
+      if ('wakeLock' in navigator) {
+        try {
+          wakeLock = await navigator.wakeLock.request('screen');
+          document.getElementById('wake-status').textContent = 'Wake Lock Active';
+        } catch (e) {}
+      }
+    }
+
+    function releaseWakeLock() {
+      if (wakeLock) {
+        wakeLock.release().catch(() => {});
+        wakeLock = null;
+      }
+    }
+
+    // Timer Engine
+    function startTimer() {
+      saveSettings();
+      const m = parseInt(document.getElementById('total-min').value) || 0;
+      const s = parseInt(document.getElementById('total-sec').value) || 0;
+      remainingSeconds = m * 60 + s;
+      if (remainingSeconds <= 0) remainingSeconds = 60;
+
+      firedPreAlerts.clear();
+      firedThresholds.clear();
+      isPaused = false;
+      document.getElementById('btn-pause').textContent = 'Pause';
+
+      const timerView = document.getElementById('timer-view');
+      timerView.classList.add('active');
+      timerView.classList.remove('controls-hidden');
+
+      if (document.documentElement.requestFullscreen) {
+        document.documentElement.requestFullscreen().catch(() => {});
+      }
+      requestWakeLock();
+
+      updateTimerUI();
+      clearInterval(timerInterval);
+      timerInterval = setInterval(() => {
+        if (!isPaused) {
+          remainingSeconds--;
+          updateTimerUI();
+        }
+      }, 1000);
+    }
+
+    function updateTimerUI() {
+      const leadTime = parseInt(document.getElementById('lead-time').value) || 0;
+      const timerView = document.getElementById('timer-view');
+      const timeDisplay = document.getElementById('time-display');
+      const stageLabel = document.getElementById('stage-label');
+      const preBanner = document.getElementById('pre-alert-banner');
+      const preCnt = document.getElementById('pre-alert-cnt');
+
+      // Sort thresholds descending by time in seconds
+      const sorted = thresholds
+        .map((t, i) => ({ ...t, totalSec: t.m * 60 + t.s, id: i }))
+        .sort((a, b) => b.totalSec - a.totalSec);
+
+      // Format MM:SS
+      const absSec = Math.abs(remainingSeconds);
+      const mins = String(Math.floor(absSec / 60)).padStart(2, '0');
+      const secs = String(absSec % 60).padStart(2, '0');
+      timeDisplay.textContent = (remainingSeconds < 0 ? '+' : '') + `${mins}:${secs}`;
+
+      // Check Pre-Alert Window
+      let upcomingAlert = null;
+      for (const t of sorted) {
+        const diff = remainingSeconds - t.totalSec;
+        if (diff > 0 && diff <= leadTime) {
+          upcomingAlert = { ...t, diff };
+          if (!firedPreAlerts.has(t.id)) {
+            firedPreAlerts.add(t.id);
+            triggerFeedback('pre');
+          }
+          break;
+        }
+      }
+
+      if (upcomingAlert) {
+        timerView.classList.add('pre-alert-active');
+        preBanner.style.display = 'flex';
+        preCnt.textContent = upcomingAlert.diff;
+      } else {
+        timerView.classList.remove('pre-alert-active');
+        preBanner.style.display = 'none';
+      }
+
+      // Determine active color threshold
+      if (remainingSeconds <= 0) {
+        // Overtime state
+        if (!firedThresholds.has('overtime')) {
+          firedThresholds.add('overtime');
+          triggerFeedback('shift');
+        }
+        timerView.style.backgroundColor = '#7f1d1d';
+        timerView.style.color = '#ffffff';
+        stageLabel.textContent = 'TIME IS UP — WRAP UP';
+        timeDisplay.classList.add('overtime-blink');
+        return;
+      } else {
+        timeDisplay.classList.remove('overtime-blink');
+      }
+
+      let activeThreshold = null;
+      for (const t of sorted) {
+        if (remainingSeconds <= t.totalSec) {
+          activeThreshold = t;
+        }
+      }
+
+      if (activeThreshold) {
+        if (!firedThresholds.has(activeThreshold.id)) {
+          firedThresholds.add(activeThreshold.id);
+          triggerFeedback('shift');
+        }
+        timerView.style.backgroundColor = activeThreshold.c;
+        timerView.style.color = getContrastColor(activeThreshold.c);
+        stageLabel.textContent = activeThreshold.l || 'TIME WARNING';
+      } else {
+        timerView.style.backgroundColor = '#0f172a';
+        timerView.style.color = '#f8fafc';
+        stageLabel.textContent = 'PRESENTING';
+      }
+    }
+
+    function togglePause() {
+      isPaused = !isPaused;
+      document.getElementById('btn-pause').textContent = isPaused ? 'Resume' : 'Pause';
+    }
+
+    function addOneMinute() {
+      remainingSeconds += 60;
+      firedPreAlerts.clear();
+      firedThresholds.clear();
+      updateTimerUI();
+    }
+
+    function resetTimer() {
+      const m = parseInt(document.getElementById('total-min').value) || 0;
+      const s = parseInt(document.getElementById('total-sec').value) || 0;
+      remainingSeconds = m * 60 + s;
+      firedPreAlerts.clear();
+      firedThresholds.clear();
+      updateTimerUI();
+    }
+
+    function exitTimer() {
+      clearInterval(timerInterval);
+      releaseWakeLock();
+      if (document.fullscreenElement && document.exitFullscreen) {
+        document.exitFullscreen().catch(() => {});
+      }
+      document.getElementById('timer-view').classList.remove('active');
+    }
+
+    function toggleControlsOverlay(e) {
+      document.getElementById('timer-view').classList.toggle('controls-hidden');
+    }
+
+    loadSettings();
+  </script>
+</body>
+</html>
